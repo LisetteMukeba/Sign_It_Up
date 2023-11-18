@@ -381,28 +381,25 @@ def login():
 
                 # btn_sign_spch = Button(top, text='Sign to Speech ', bg='grey', fg='white', font=('Arial', 20), bd=5, )
                 # btn_sign_spch.place(x=140, y=120)
-                btn_spch_sign = customtkinter.CTkButton(master=top, text="Sign to Speech ")
-                btn_spch_sign.place(relx=0.5, rely=0.3, anchor=CENTER)
-
                 def signtotext():
                     messagebox.showinfo('Login Success', 'Hello Lisette\n Press okay to start')
                     top.withdraw()
                     main()
+                btn_spch_sign = customtkinter.CTkButton(master=top, text="Sign to Speech",command=signtotext)
+                btn_spch_sign.place(relx=0.5, rely=0.3, anchor=CENTER)
+
+
 
                 # btn_sign_txt = Button(top, text='Sign to Text ', bg='grey', fg='white', font=('Arial', 20), bd=5,
                 #                       command=signtotext)
                 # btn_sign_txt.place(x=160, y=190)
                 btn_spch_sign = customtkinter.CTkButton(master=top, text="Sign to Text", command=signtotext)
                 btn_spch_sign.place(relx=0.5, rely=0.5, anchor=CENTER)
+
                 def texttosign():
                     top.withdraw()
                     texttosignwin()
 
-
-
-
-                # btn_txt_sign = Button(top, text='Text to Sign ', bg='grey', fg='white', font=('Arial', 20), bd=5, command=texttosign)
-                # btn_txt_sign.place(x=160, y=260)
                 btn_spch_sign = customtkinter.CTkButton(master=top, text="Text to Sign", command=texttosign)
                 btn_spch_sign.place(relx=0.5, rely=0.7, anchor=CENTER)
                 # btn_chng_password = Button(top, text='Change Password', bg='grey', fg='white', font=('Arial', 20), bd=5, )
@@ -512,7 +509,7 @@ def main():
         # Process Key (ESC: end) #################################################
         key = cv.waitKey(10)
         if key == 27:  # ESC
-            root.deiconify()
+            top.deiconify()
             break
         number, mode = select_mode(key, mode)
         # say the words
