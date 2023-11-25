@@ -10,8 +10,8 @@ from collections import deque
 import pyttsx3
 #import PyAudio
 import cv2 as cv
-import mediapipe as mp
-import numpy as np
+import mediapipe as mediapipe
+import numpy as numpy
 from utils.cvfpscalc import CvFpsCalc
 from model.keypoint_classifier.keypoint_classifier import KeyPointClassifier
 from model.point_history_classifier.point_history_classifier import PointHistoryClassifier
@@ -37,25 +37,21 @@ def on_closing():
 r = sr.Recognizer()
 
 class ImageLabel(tk.Label):
-    """
-    A Label that displays images, and plays them if they are gifs
-    :im: A PIL Image instance or a string filename
-    """
-    def load(self, im):
-        if isinstance(im, str):
-            im = Image.open(im)
+    def load(self, image):
+        if isinstance(image, str):
+            im = Image.open(image)
         frames = []
 
         try:
             for i in count(1):
-                frames.append(ImageTk.PhotoImage(im.copy()))
-                im.seek(i)
+                frames.append(ImageTk.PhotoImage(image.copy()))
+                image.seek(i)
         except EOFError:
             pass
         self.frames = cycle(frames)
 
         try:
-            self.delay = im.info['duration']
+            self.delay = image.info['duration']
         except:
             self.delay = 100
 
@@ -420,68 +416,63 @@ def login():
         else:
             message = "Wrong password or Username"
             messagebox.showerror('Login Error', message)
-def get_args():
-    parser = argparse.ArgumentParser()
+def loadArguments():
+    analyzer = argparse.ArgumentParser()
 
-    parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--width", help='cap width', type=int, default=960)
-    parser.add_argument("--height", help='cap height', type=int, default=540)
+    analyzer.add_argument("--device", type=int, default=0)
+    analyzer.add_argument("--width", help='cap width', type=int, default=960)
+    analyzer.add_argument("--height", help='cap height', type=int, default=560)# cahnged values here
 
-    parser.add_argument('--use_static_image_mode', action='store_true')
-    parser.add_argument("--min_detection_confidence",
+    analyzer.add_argument('--use_static_image_mode', action='store_true')
+    analyzer.add_argument("--min_detection_confidence",
                         help='min_detection_confidence',
                         type=float,
                         default=0.7)
-    parser.add_argument("--min_tracking_confidence",
+    analyzer.add_argument("--min_tracking_confidence",
                         help='min_tracking_confidence',
                         type=int,
                         default=0.5)
 
-    args = parser.parse_args()
+    arguments = analyzer.parse_args()
 
-    return args
+    return arguments
 
 
 def main():
 
     # Argument parsing #################################################################
-    args = get_args()
+    arguments = loadArguments()
 
-    cap_device = args.device
-    cap_width = args.width
-    cap_height = args.height
+    screenName = arguments.device
+    screenWidth = arguments.width
+    screenHeight = arguments.height
 
-    use_static_image_mode = args.use_static_image_mode
-    min_detection_confidence = args.min_detection_confidence
-    min_tracking_confidence = args.min_tracking_confidence
+    use_static_image_mode = arguments.use_static_image_mode
+    min_detection_confidence = arguments.min_detection_confidence
+    min_tracking_confidence = arguments.min_tracking_confidence
 
     use_brect = True
 
     # Camera preparation ###############################################################
-    cap = cv.VideoCapture(cap_device)
-    cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
-    cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
+    cap = cv.VideoCapture(screenName)
+    cap.set(cv.CAP_PROP_FRAME_WIDTH, screenWidth)
+    cap.set(cv.CAP_PROP_FRAME_HEIGHT, screenHeight)
 
     # Model load #############################################################
-    mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(
-        static_image_mode=use_static_image_mode,
-        max_num_hands=1,# change number of hands
+    handsMediapipe = mediapipe.solutions.hands
+    hands = handsMediapipe.Hands(
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
+        static_image_mode=use_static_image_mode,
+        max_num_hands=1,# change number of hands
+        
     )
 
     keypoint_classifier = KeyPointClassifier()
 
     point_history_classifier = PointHistoryClassifier()
 
-    # Read labels ###########################################################
-    with open('model/keypoint_classifier/keypoint_classifier_label.csv',
-              encoding='utf-8-sig') as f:
-        keypoint_classifier_labels = csv.reader(f)
-        keypoint_classifier_labels = [
-            row[0] for row in keypoint_classifier_labels
-        ]
+    # get all the Labels
     with open(
             'model/point_history_classifier/point_history_classifier_label.csv',
             encoding='utf-8-sig') as f:
@@ -489,34 +480,40 @@ def main():
         point_history_classifier_labels = [
             row[0] for row in point_history_classifier_labels
         ]
+    with open('model/keypoint_classifier/keypoint_classifier_label.csv',
+              encoding='utf-8-sig') as f:
+        keypoint_classifier_labels = csv.reader(f)
+        keypoint_classifier_labels = [
+            row[0] for row in keypoint_classifier_labels
+        ]
 
-    # FPS Measurement ########################################################
-    cvFpsCalc = CvFpsCalc(buffer_len=10)
+    # Frame fer seconds
+    FPS_Calculation = CvFpsCalc(buffer_len=10)
 
-    # Coordinate history #################################################################
-    history_length = 16
-    point_history = deque(maxlen=history_length)
+    # CLast coordinate
+    howFarHistory = 16
+    point_history = deque(maxlen=howFarHistory)
 
     # Finger gesture history ################################################
-    finger_gesture_history = deque(maxlen=history_length)
+    finger_gesture_history = deque(maxlen=howFarHistory)
 
     #  ########################################################################
-    mode = 0
+    modeSetup = 0
 # as long as the screen is open
     while True:
-        fps = cvFpsCalc.get()
+        fps = FPS_Calculation.get()
 
         # Process Key (ESC: end) #################################################
         key = cv.waitKey(10)
-        if key == 27:  # ESC
+        if key == 27:  # ESC to close the window
             top.deiconify()
             break
-        number, mode = select_mode(key, mode)
-        # say the words
+        number, modeSetup = select_mode(key, modeSetup)
+        # say the words 'J' if you want to say the words
         if key == 122:
             saythis= (keypoint_classifier_labels[keypoint_classifier(pre_processed_landmark_list)])
             say_it_in_words(saythis)
-        # Camera capture #####################################################
+        # all about the camera
         ret, image = cap.read()# reads the frames
         if not ret:
             break
@@ -545,8 +542,8 @@ def main():
                     landmark_list)
                 pre_processed_point_history_list = pre_process_point_history(
                     debug_image, point_history)
-                # Write to the dataset file
-                logging_csv(number, mode, pre_processed_landmark_list,
+                # Write results to the dataset files
+                logging_csv(number, modeSetup, pre_processed_landmark_list,
                             pre_processed_point_history_list)
 
                 # Hand sign classification
@@ -556,10 +553,10 @@ def main():
                 else:
                     point_history.append([0, 0])
 
-                # Finger gesture classification
+                # fingers
                 finger_gesture_id = 0
                 point_history_len = len(pre_processed_point_history_list)
-                if point_history_len == (history_length * 2):
+                if point_history_len == (howFarHistory * 2):
                     finger_gesture_id = point_history_classifier(
                         pre_processed_point_history_list)
 
@@ -568,7 +565,7 @@ def main():
                 most_common_fg_id = Counter(
                     finger_gesture_history).most_common()
 
-                # Drawing part
+                # Drawing section
                 debug_image = draw_bounding_rect(use_brect, debug_image, brect)
                 debug_image = draw_landmarks(debug_image, landmark_list)
                 debug_image = draw_info_text(
@@ -582,40 +579,40 @@ def main():
             point_history.append([0, 0])
 
         # debug_image = draw_point_history(debug_image, point_history)
-        debug_image = draw_info(debug_image, fps, mode, number)
+        debug_image = draw_info(debug_image, fps, modeSetup, number)
 
-        # Screen reflection #############################################################
+        # Screen detection
         cv.imshow('Two-Way Sign Recognition System', debug_image)
 
     cap.release()
     cv.destroyAllWindows()
 
 
-def select_mode(key, mode):
+def select_mode(key, modeSetup):
     number = -1
     if 48 <= key <= 57:  # 0 ~ 9
         number = key - 48
     if key == 110:  # n
-        mode = 0
+        modeSetup = 0
     if key == 107:  # k
-        mode = 1
+        modeSetup = 1
     if key == 104:  # h
-        mode = 2
-    return number, mode
+        modeSetup = 2
+    return number, modeSetup
 
 
 def calc_bounding_rect(image, landmarks):
     image_width, image_height = image.shape[1], image.shape[0]
 
-    landmark_array = np.empty((0, 2), int)
+    landmark_array = numpy.empty((0, 2), int)
 
     for _, landmark in enumerate(landmarks.landmark):
         landmark_x = min(int(landmark.x * image_width), image_width - 1)
         landmark_y = min(int(landmark.y * image_height), image_height - 1)
 
-        landmark_point = [np.array((landmark_x, landmark_y))]
+        landmark_point = [numpy.array((landmark_x, landmark_y))]
 
-        landmark_array = np.append(landmark_array, landmark_point, axis=0)
+        landmark_array = numpy.append(landmark_array, landmark_point, axis=0)
 
     x, y, w, h = cv.boundingRect(landmark_array)
 
@@ -693,15 +690,15 @@ def pre_process_point_history(image, point_history):
     return temp_point_history
 
 
-def logging_csv(number, mode, landmark_list, point_history_list):
-    if mode == 0:
+def logging_csv(number, modeSetup, landmark_list, point_history_list):
+    if modeSetup == 0:
         pass
-    if mode == 1 and (0 <= number <= 9):
+    if modeSetup == 1 and (0 <= number <= 9):
         csv_path = 'model/keypoint_classifier/keypoint.csv'
         with open(csv_path, 'a', newline="") as f:
             writer = csv.writer(f)
             writer.writerow([number, *landmark_list])
-    if mode == 2 and (0 <= number <= 9):
+    if modeSetup == 2 and (0 <= number <= 9):
         csv_path = 'model/point_history_classifier/point_history.csv'
         with open(csv_path, 'a', newline="") as f:
             writer = csv.writer(f)
@@ -936,7 +933,7 @@ def draw_point_history(image, point_history):
     return image
 
 
-def draw_info(image, fps, mode, number):
+def draw_info(image, fps, modeSetup, number):
     cv.putText(image, "Signs -> Text ", (10, 30), cv.FONT_HERSHEY_SIMPLEX,
                1.0, (0, 0, 0), 4, cv.LINE_AA)
     cv.putText(image, "Signs -> Text ", (10, 30), cv.FONT_HERSHEY_SIMPLEX,
@@ -948,8 +945,8 @@ def draw_info(image, fps, mode, number):
                1.0, (255, 255, 255), 2, cv.LINE_AA)
 
     mode_string = ['Logging Key Point', 'Logging Point History']
-    if 1 <= mode <= 2:
-        cv.putText(image, "MODE:" + mode_string[mode - 1], (10, 90),
+    if 1 <= modeSetup <= 2:
+        cv.putText(image, "MODE:" + mode_string[modeSetup - 1], (10, 90),
                    cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
                    cv.LINE_AA)
         if 0 <= number <= 9:
